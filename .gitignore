@@ -30,4 +30,5 @@ dkms.conf
 client
 out
 *.txt
+*.png
 .vscode/
