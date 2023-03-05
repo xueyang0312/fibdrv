@@ -30,26 +30,19 @@ static struct cdev *fib_cdev;
 static struct class *fib_class;
 static DEFINE_MUTEX(fib_mutex);
 
-
-static long long fast_doubling_recursive(long long k, long long *f)
-{
-    if (k <= 2)
-        return (k > 0) ? (f[k] = 1) : (f[k] = 0);
-
-    int x = k / 2;
-    long long a = fast_doubling_recursive(x + 1, f);
-    long long b = fast_doubling_recursive(x, f);
-    f[k] = (k % 2) ? a * a + b * b : b * (2 * a - b);
-    return f[k];
-}
-
 static long long fib_sequence_fast_doubling(long long k)
 {
-    long long *f = kmalloc((k + 2) * sizeof(long long), GFP_KERNEL);
-    memset(f, 0, (k + 2) * sizeof(long long));
-    fast_doubling_recursive(k, f);
+    if (k <= 2)
+        return !!k;
 
-    return f[k];
+    // fib(2n) = fib(n) * (2 * fib(n+1) − fib(n))
+    // fib(2n+1) = fib(n) * fib(n) + fib(n+1) * fib(n+1)
+    long long a = fib_sequence_fast_doubling(k >> 1);
+    long long b = fib_sequence_fast_doubling((k >> 1) + 1);
+
+    if (k & 1)
+        return a * a + b * b;
+    return a * ((b << 1) - a);
 }
 
 static long long fib_sequence_string_add(long long k, char *buf)
