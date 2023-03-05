@@ -10,6 +10,8 @@
 #include <linux/slab.h>
 // __copy_to_user
 #include <asm/uaccess.h>
+// ktime_t
+#include <linux/ktime.h>
 
 #include "stringAdd.h"
 
@@ -29,6 +31,7 @@ static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
 static struct class *fib_class;
 static DEFINE_MUTEX(fib_mutex);
+static ktime_t kt;
 
 static long long fib_sequence_fast_doubling(long long k)
 {
@@ -94,18 +97,24 @@ static int fib_release(struct inode *inode, struct file *file)
     return 0;
 }
 
-static long long fib_read_proxy(long long k, char *buf, int mode)
+static long long fib_time_proxy(long long k, char *buf, int mode)
 {
     long long result = 0;
     switch (mode) {
     case 0:
+        kt = ktime_get();
         result = fib_sequence_basic(k);
+        kt = ktime_sub(ktime_get(), kt);
         break;
     case 1:
+        kt = ktime_get();
         result = fib_sequence_string_add(k, buf);
+        kt = ktime_sub(ktime_get(), kt);
         break;
     case 2:
+        kt = ktime_get();
         result = fib_sequence_fast_doubling(k);
+        kt = ktime_sub(ktime_get(), kt);
     default:
         break;
     }
@@ -119,7 +128,7 @@ static ssize_t fib_read(struct file *file,
                         size_t size,
                         loff_t *offset)
 {
-    return (ssize_t) fib_read_proxy(*offset, buf, 2);
+    return (ssize_t) fib_time_proxy(*offset, buf, 2);
 }
 
 /* write operation is skipped */
@@ -128,7 +137,7 @@ static ssize_t fib_write(struct file *file,
                          size_t size,
                          loff_t *offset)
 {
-    return 1;
+    return ktime_to_ns(kt);
 }
 
 static loff_t fib_device_lseek(struct file *file, loff_t offset, int orig)

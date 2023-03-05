@@ -10,8 +10,6 @@
 
 int main()
 {
-    long long sz;
-
     char write_buf[] = "testing writing";
     int offset = 93; /* TODO: try test something bigger than the limit */
 
@@ -21,17 +19,16 @@ int main()
         exit(1);
     }
 
-    for (int i = 0; i <= offset; i++) {
-        sz = write(fd, write_buf, strlen(write_buf));
-        printf("Writing to " FIB_DEV ", returned the sequence %lld\n", sz);
-    }
+    FILE *output = fopen("output.txt", "w");
 
 #if DEBUG > 0
     char buf[1];
     for (int i = 0; i <= offset; i++) {
         lseek(fd, i, SEEK_SET);
-        sz = read(fd, buf, 1);
+        long long sz = read(fd, buf, 1);
         // read_buf[sz] = '\0';
+        long long ktime = write(fd, write_buf, strlen(write_buf));
+        fprintf(output, "%lld\r\n", ktime);
         printf("Reading from " FIB_DEV
                " at offset %d, returned the sequence "
                "%lld.\n",
@@ -41,7 +38,7 @@ int main()
     char read_buf[] = "";
     for (int i = 0; i <= offset; i++) {
         lseek(fd, i, SEEK_SET);
-        sz = read(fd, read_buf, 1);
+        long long sz = read(fd, read_buf, 1);
         read_buf[sz] = '\0';
         printf("Reading from " FIB_DEV
                " at offset %d, returned the sequence "
@@ -60,5 +57,6 @@ int main()
     // }
 
     close(fd);
+    fclose(output);
     return 0;
 }
