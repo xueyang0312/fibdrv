@@ -3,15 +3,29 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #define FIB_DEV "/dev/fibonacci"
 #define DEBUG 1
 
+static inline long long diff(struct timespec start, struct timespec end)
+{
+    struct timespec temp;
+    if ((end.tv_nsec - start.tv_nsec) < 0) {
+        temp.tv_sec = end.tv_sec - start.tv_sec - 1;
+        temp.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
+    } else {
+        temp.tv_sec = end.tv_sec - start.tv_sec;
+        temp.tv_nsec = end.tv_nsec - start.tv_nsec;
+    }
+    return temp.tv_sec * 1e9 + temp.tv_nsec;
+}
+
 int main()
 {
     char write_buf[] = "testing writing";
-    int offset = 93; /* TODO: try test something bigger than the limit */
+    int offset = 92; /* TODO: try test something bigger than the limit */
 
     int fd = open(FIB_DEV, O_RDWR);
     if (fd < 0) {
@@ -19,16 +33,22 @@ int main()
         exit(1);
     }
 
-    FILE *output = fopen("output.txt", "w");
+    FILE *output = fopen("Fibonacci_recursive.txt", "w");
+
+    struct timespec start, end;
 
 #if DEBUG > 0
     char buf[1];
     for (int i = 0; i <= offset; i++) {
         lseek(fd, i, SEEK_SET);
+        clock_gettime(CLOCK_REALTIME, &start);
         long long sz = read(fd, buf, 1);
+        clock_gettime(CLOCK_REALTIME, &end);
         // read_buf[sz] = '\0';
+        long long utime = diff(start, end);
         long long ktime = write(fd, write_buf, strlen(write_buf));
-        fprintf(output, "%lld\r\n", ktime);
+        fprintf(output, "%d %lld %lld %lld\r\n", i, utime, ktime,
+                utime - ktime);
         printf("Reading from " FIB_DEV
                " at offset %d, returned the sequence "
                "%lld.\n",

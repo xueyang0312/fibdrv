@@ -128,7 +128,7 @@ static ssize_t fib_read(struct file *file,
                         size_t size,
                         loff_t *offset)
 {
-    return (ssize_t) fib_time_proxy(*offset, buf, 2);
+    return (ssize_t) fib_time_proxy(*offset, buf, 0);
 }
 
 /* write operation is skipped */
