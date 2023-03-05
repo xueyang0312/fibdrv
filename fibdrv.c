@@ -30,9 +30,30 @@ static struct cdev *fib_cdev;
 static struct class *fib_class;
 static DEFINE_MUTEX(fib_mutex);
 
-static long long fib_sequence(long long k, char *buf)
+
+static long long fast_doubling_recursive(long long k, long long *f)
 {
-    /* FIXME: C99 variable-length array (VLA) is not allowed in Linux kernel. */
+    if (k <= 2)
+        return (k > 0) ? (f[k] = 1) : (f[k] = 0);
+
+    int x = k / 2;
+    long long a = fast_doubling_recursive(x + 1, f);
+    long long b = fast_doubling_recursive(x, f);
+    f[k] = (k % 2) ? a * a + b * b : b * (2 * a - b);
+    return f[k];
+}
+
+static long long fib_sequence_fast_doubling(long long k)
+{
+    long long *f = kmalloc((k + 2) * sizeof(long long), GFP_KERNEL);
+    memset(f, 0, (k + 2) * sizeof(long long));
+    fast_doubling_recursive(k, f);
+
+    return f[k];
+}
+
+static long long fib_sequence_string_add(long long k, char *buf)
+{
     // GFP_KERNEL is a flag used for memory allocation in the Linux kernel.
     str_t *f = kmalloc((k + 2) * sizeof(str_t), GFP_KERNEL);
     strncpy(f[0].numberStr, "0", 1);
@@ -50,6 +71,21 @@ static long long fib_sequence(long long k, char *buf)
     return retSize;
 }
 
+static long long fib_sequence_basic(long long k)
+{
+    /* FIXME: C99 variable-length array (VLA) is not allowed in Linux kernel. */
+    long long *f = kmalloc((k + 2) * sizeof(long long), GFP_KERNEL);
+
+    f[0] = 0;
+    f[1] = 1;
+
+    for (int i = 2; i <= k; i++) {
+        f[i] = f[i - 1] + f[i - 2];
+    }
+
+    return f[k];
+}
+
 static int fib_open(struct inode *inode, struct file *file)
 {
     if (!mutex_trylock(&fib_mutex)) {
@@ -65,13 +101,32 @@ static int fib_release(struct inode *inode, struct file *file)
     return 0;
 }
 
+static long long fib_read_proxy(long long k, char *buf, int mode)
+{
+    long long result = 0;
+    switch (mode) {
+    case 0:
+        result = fib_sequence_basic(k);
+        break;
+    case 1:
+        result = fib_sequence_string_add(k, buf);
+        break;
+    case 2:
+        result = fib_sequence_fast_doubling(k);
+    default:
+        break;
+    }
+
+    return result;
+}
+
 /* calculate the fibonacci number at given offset */
 static ssize_t fib_read(struct file *file,
                         char *buf,
                         size_t size,
                         loff_t *offset)
 {
-    return (ssize_t) fib_sequence(*offset, buf);
+    return (ssize_t) fib_read_proxy(*offset, buf, 2);
 }
 
 /* write operation is skipped */
