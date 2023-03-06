@@ -1,3 +1,4 @@
+reset
 set term png enhanced font 'Verdana,10'
 set output 'Fibonacci_recursive.png'
 set title "Fibonacci recursive"
