@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 #define FIB_DEV "/dev/fibonacci"
-#define DEBUG 1
+#define DEBUG 0
 
 static inline long long diff(struct timespec start, struct timespec end)
 {
@@ -25,7 +25,7 @@ static inline long long diff(struct timespec start, struct timespec end)
 int main()
 {
     char write_buf[] = "testing writing";
-    int offset = 92; /* TODO: try test something bigger than the limit */
+    int offset = 1000; /* TODO: try test something bigger than the limit */
 
     int fd = open(FIB_DEV, O_RDWR);
     if (fd < 0) {
@@ -33,7 +33,7 @@ int main()
         exit(1);
     }
 
-    FILE *output = fopen("Fibonacci_recursive.txt", "w");
+    FILE *output = fopen("Fibonacci_StringAdd.txt", "w");
 
     struct timespec start, end;
 
@@ -58,7 +58,12 @@ int main()
     char read_buf[] = "";
     for (int i = 0; i <= offset; i++) {
         lseek(fd, i, SEEK_SET);
+        clock_gettime(CLOCK_REALTIME, &start);
         long long sz = read(fd, read_buf, 1);
+        clock_gettime(CLOCK_REALTIME, &end);
+        long long utime = diff(start, end);
+        long long ktime = write(fd, write_buf, strlen(write_buf));
+        fprintf(output, "%lld\r\n", utime);
         read_buf[sz] = '\0';
         printf("Reading from " FIB_DEV
                " at offset %d, returned the sequence "

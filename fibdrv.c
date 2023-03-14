@@ -6,13 +6,15 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/types.h>
 // kmalloc
 #include <linux/slab.h>
 // __copy_to_user
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 // ktime_t
 #include <linux/ktime.h>
 
+#include "bn_kernel.h"
 #include "stringAdd.h"
 
 MODULE_LICENSE("Dual MIT/GPL");
@@ -33,15 +35,105 @@ static struct class *fib_class;
 static DEFINE_MUTEX(fib_mutex);
 static ktime_t kt;
 
-static long long fib_sequence_fast_doubling(long long k)
+static long long bn_fib_iterative(unsigned int n, char *buf)
+{
+    bn *dest = bn_alloc(1);
+    if (n <= 2) {  // Fib(0) = 0, Fib(1) = 1
+        dest->number[0] = !!n;
+        return 1;
+    }
+
+    bn *a = bn_alloc(1);
+    bn *b = bn_alloc(1);
+    dest->number[0] = 1;
+
+    for (unsigned int i = 1; i < n; i++) {
+        bn_cpy(b, dest);
+        bn_add(dest, a, dest);
+        bn_swap(a, b);
+    }
+    bn_free(a);
+    bn_free(b);
+    char *ret = bn_to_string(dest);
+    bn_free(dest);
+
+    size_t retSize = strlen(ret);
+    __copy_to_user(buf, ret, retSize);
+    return retSize;
+}
+
+static bn bn_fib_helper(long long k, bn *fib, bn *c)
+{
+    if (k <= 2) {
+        long long tmp = k;
+        bn_init(&fib[k], 1, !!tmp);
+        return fib[k];
+    }
+
+    bn_init(&c[0], 1, 0);
+    bn_init(&c[1], 1, 0);
+    bn_init(&fib[k], 1, 0);
+
+    bn a = bn_fib_helper((k >> 1), fib, c);
+    bn b = bn_fib_helper((k >> 1) + 1, fib, c);
+
+    if (k & 1) {
+        bn_mul(&a, &a, &c[0]);          // c0 = a * a
+        bn_mul(&b, &b, &c[1]);          // c1 = b * b
+        bn_add(&c[0], &c[1], &fib[k]);  // fib[k] = a * a + b * b
+    } else {
+        bn_lshift(&b, 1, &c[0]);     // c0 = 2 * b
+        bn_sub(&c[0], &a, &c[1]);    // c1 = 2 * b - a
+        bn_mul(&a, &c[1], &fib[k]);  // fib[k] = a * (2 * b - a)
+    }
+
+    return fib[k];
+}
+
+static long long bn_fib_fast_doubling_recursive(long long k, char *buf)
+{
+    bn *fib = (bn *) kmalloc((k + 2) * sizeof(bn), GFP_KERNEL);
+    bn *c = (bn *) kmalloc(2 * sizeof(bn), GFP_KERNEL);
+    bn_fib_helper(k, fib, c);
+    char *ret = bn_to_string(&fib[k]);
+    size_t retSize = strlen(ret);
+    __copy_to_user(buf, ret, retSize);
+    return retSize;
+}
+
+static long long fib_sequence_fast_doubling_iterative(long long k)
+{
+    if (k <= 2)
+        return !!k;
+
+    uint8_t count = 63 - __builtin_clzll(k);
+    uint64_t fib_n0 = 1, fib_n1 = 1;
+
+    for (uint64_t i = count, fib_2n0, fib_2n1; i-- > 0;) {
+        fib_2n0 = fib_n0 * ((fib_n1 << 1) - fib_n0);
+        fib_2n1 = fib_n0 * fib_n0 + fib_n1 * fib_n1;
+
+        if (k & (1UL << i)) {
+            fib_n0 = fib_2n1;            // 2k
+            fib_n1 = fib_2n0 + fib_2n1;  // 2K + 1
+        } else {
+            fib_n0 = fib_2n0;
+            fib_n1 = fib_2n1;
+        }
+    }
+
+    return fib_n0;
+}
+
+static long long fib_sequence_fast_doubling_recursive(long long k)
 {
     if (k <= 2)
         return !!k;
 
     // fib(2n) = fib(n) * (2 * fib(n+1) − fib(n))
     // fib(2n+1) = fib(n) * fib(n) + fib(n+1) * fib(n+1)
-    long long a = fib_sequence_fast_doubling(k >> 1);
-    long long b = fib_sequence_fast_doubling((k >> 1) + 1);
+    long long a = fib_sequence_fast_doubling_recursive(k >> 1);
+    long long b = fib_sequence_fast_doubling_recursive((k >> 1) + 1);
 
     if (k & 1)
         return a * a + b * b;
@@ -113,8 +205,24 @@ static long long fib_time_proxy(long long k, char *buf, int mode)
         break;
     case 2:
         kt = ktime_get();
-        result = fib_sequence_fast_doubling(k);
+        result = fib_sequence_fast_doubling_recursive(k);
         kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 3:
+        kt = ktime_get();
+        result = fib_sequence_fast_doubling_iterative(k);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 4:
+        kt = ktime_get();
+        result = bn_fib_fast_doubling_recursive(k, buf);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 5:
+        kt = ktime_get();
+        result = bn_fib_iterative(k, buf);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
     default:
         break;
     }
@@ -128,7 +236,7 @@ static ssize_t fib_read(struct file *file,
                         size_t size,
                         loff_t *offset)
 {
-    return (ssize_t) fib_time_proxy(*offset, buf, 0);
+    return (ssize_t) fib_time_proxy(*offset, buf, 5);
 }
 
 /* write operation is skipped */
