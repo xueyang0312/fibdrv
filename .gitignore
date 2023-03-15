@@ -32,3 +32,5 @@ out
 *.txt
 *.png
 .vscode/
+tmp
+tmp.c
