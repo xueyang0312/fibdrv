@@ -34,6 +34,6 @@ void bn_swap(bn *a, bn *b);
 void bn_add(const bn *a, const bn *b, bn *c);
 void bn_sub(const bn *a, const bn *b, bn *c);
 void bn_mul(const bn *a, const bn *b, bn *c);
-void bn_lshift(const bn *src, size_t offset, bn *destination);
+void bn_lshift(const bn *src, size_t offset);
 char *bn_to_string(const bn *src);
 #endif

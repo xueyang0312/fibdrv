@@ -255,25 +255,20 @@ void bn_mul(const bn *a, const bn *b, bn *c)
     }
 }
 
-void bn_lshift(const bn *src, size_t offset, bn *destination)
+void bn_lshift(const bn *src, size_t offset)
 {
-    size_t numberOFzero = bn_clz(src);
-    offset %= 32;
-
+    size_t z = bn_clz(src);
+    offset %= 32;  // only handle offset within 32 bits atm
     if (!offset)
         return;
 
-    if (offset > numberOFzero)
-        bn_resize(destination, src->size + 1);
-    else
-        bn_resize(destination, src->size);
-
-    for (int i = src->size - 1; i > 0; i--) {
-        destination->number[i] =
+    if (offset > z)
+        bn_resize(src, src->size + 1);
+    /* bit shift */
+    for (int i = src->size - 1; i > 0; i--)
+        src->number[i] =
             src->number[i] << offset | src->number[i - 1] >> (32 - offset);
-    }
-
-    destination->number[0] = src->number[0] << offset;
+    src->number[0] <<= offset;
 }
 
 char *bn_to_string(const bn *src)
