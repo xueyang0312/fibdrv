@@ -55,16 +55,18 @@ int main()
                i, sz);
     }
 #else
-    char read_buf[] = "";
+    char read_buf[40960];
     for (int i = 0; i <= offset; i++) {
+        memset(read_buf, 0, sizeof(read_buf));
         lseek(fd, i, SEEK_SET);
         clock_gettime(CLOCK_REALTIME, &start);
-        long long sz = read(fd, read_buf, 1);
+        long long sz = read(fd, read_buf, sizeof(read_buf));
         clock_gettime(CLOCK_REALTIME, &end);
         long long utime = diff(start, end);
         long long ktime = write(fd, write_buf, strlen(write_buf));
-        fprintf(output, "%lld\r\n", utime);
-        read_buf[sz] = '\0';
+        fprintf(output, "%d %lld %lld %lld\r\n", i, utime, ktime,
+                utime - ktime);
+        // read_buf[sz] = '\0';
         printf("Reading from " FIB_DEV
                " at offset %d, returned the sequence "
                "%s.\n",
