@@ -6,7 +6,7 @@
 static int bn_clz(const bn *src)
 {
     int cnt = 0;
-    for (int i = src->size - 1; i >= 0; i++) {
+    for (int i = src->size - 1; i >= 0; i--) {
         if (src->number[i]) {
             cnt += __builtin_clz(src->number[i]);
             return cnt;
@@ -242,7 +242,7 @@ void bn_mul(const bn *a, const bn *b, bn *c)
     for (int i = 0; i < a->size; i++) {
         for (int j = 0; j < b->size; j++) {
             unsigned long long int carry = 0;
-            carry = (unsigned long long int) a->number[i] * b->number[i];
+            carry = (unsigned long long int) a->number[i] * b->number[j];
             bn_mul_add(c, i + j, carry);
         }
     }
