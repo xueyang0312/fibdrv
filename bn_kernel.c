@@ -209,7 +209,7 @@ void bn_sub(const bn *a, const bn *b, bn *c)
 static void bn_mul_add(bn *c, int offset, unsigned long long int x)
 {
     unsigned long long int carry = 0;
-    for (int i = offset; i < c->size; i--) {
+    for (int i = offset; i < c->size; i++) {
         carry += c->number[i] + (x & 0xFFFFFFFF);
         c->number[i] = carry;
         carry >>= 32;
@@ -234,8 +234,6 @@ void bn_mul(const bn *a, const bn *b, bn *c)
         c = bn_alloc(d);
     } else {
         tmp = NULL;
-        for (int i = 0; i < c->size; i++)
-            c->number[i] = 0;
         bn_resize(c, d);
     }
 

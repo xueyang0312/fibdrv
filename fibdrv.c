@@ -124,18 +124,19 @@ static bn bn_fib_helper(long long k, bn *fib, bn *c)
         return fib[k];
     }
 
-    bn_init(&c[0], 1, 0);
-    bn_init(&c[1], 1, 0);
-    bn_init(&fib[k], 1, 0);
-
     bn a = bn_fib_helper((k >> 1), fib, c);
     bn b = bn_fib_helper((k >> 1) + 1, fib, c);
+
+    bn_init(&fib[k], 1, 0);
+    bn_init(&c[0], 1, 0);
+    bn_init(&c[1], 1, 0);
 
     if (k & 1) {
         bn_mul(&a, &a, &c[0]);          // c0 = a * a
         bn_mul(&b, &b, &c[1]);          // c1 = b * b
         bn_add(&c[0], &c[1], &fib[k]);  // fib[k] = a * a + b * b
     } else {
+        bn_cpy(&c[0], &b);
         bn_lshift(&c[0], 1);         // c0 = 2 * b
         bn_sub(&c[0], &a, &c[1]);    // c1 = 2 * b - a
         bn_mul(&a, &c[1], &fib[k]);  // fib[k] = a * (2 * b - a)
@@ -294,7 +295,7 @@ static ssize_t fib_read(struct file *file,
                         size_t size,
                         loff_t *offset)
 {
-    return (ssize_t) fib_time_proxy(*offset, buf, 6);
+    return (ssize_t) fib_time_proxy(*offset, buf, 4);
 }
 
 /* write operation is skipped */
